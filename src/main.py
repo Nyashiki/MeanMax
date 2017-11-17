@@ -10,7 +10,10 @@ DEBUG = True
 INF = 9999999
 
 REAPER = 0
+DESTROYER = 1
+TANKER = 3
 WRECK = 4
+
 PLAYER_NUM = 3
 AREA_RADIUS = 6000
 REAPER_RADIUS = 400
@@ -29,6 +32,30 @@ class Reaper:
         self.extra = extra
         self.extra2 = extra2
 
+class Destroyer:
+    def __init__(self, unit_id, mass,
+                       radius, x, y, vx, vy, extra, extra2):
+        self.unit_id = unit_id
+        self.mass = mass
+        self.radius = radius
+        self.x = x
+        self.y = y
+        self.vx = vx
+        self.vy = vy
+        self.extra = extra
+        self.extra2 = extra2
+
+class Tanker:
+    def __init__(self, unit_id,
+                       mass, radius, x, y, extra, extra2):
+        self.unit_id = unit_id
+        self.mass = mass
+        self.radius = radius
+        self.x = x
+        self.y = y
+        self.extra = extra
+        self.extra2 = extra2
+
 class Wreck:
     def __init__(self, unit_id,
                        mass, radius, x, y, extra, extra2):
@@ -44,11 +71,14 @@ class Wreck:
 score = []
 my_reaper = []
 op_reaper = []
+my_destroyer = []
+op_destroyer = []
+tanker = []
 wreck = []
 
 # Function
 def game_turn_input():
-    global score, my_reaper, op_reaper, wreck
+    global score, my_reaper, op_reaper, my_destroyer, op_destroyer, wreck
 
     score = [None for x in range(PLAYER_NUM)]
     for i in range(PLAYER_NUM):
@@ -63,7 +93,11 @@ def game_turn_input():
     
     my_reaper = []
     op_reaper = []
+    my_destroyer = []
+    op_destroyer = []
+    tanker = []
     wreck = []
+
     unit_count = int(input())
     if DEBUG:
         sys.stderr.write(str(unit_count) + "\n")
@@ -94,15 +128,24 @@ def game_turn_input():
             else:
                 my_reaper.append(Reaper(unit_id, mass, radius, 
                     x, y, vx, vy, extra, extra2))
+        elif unit_type == DESTROYER:
+            if (player_id == -1):
+                op_destroyer.append(Destroyer(unit_id, mass, radius, 
+                    x, y, vx, vy, extra, extra2))
+            else:
+                my_destroyer.append(Destroyer(unit_id, mass, radius, 
+                    x, y, vx, vy, extra, extra2))
+
+        elif unit_type == TANKER:
+            tanker.append(Tanker(unit_id, mass, radius, x, y, extra, extra2))
 
         elif unit_type == WRECK:
             wreck.append(Wreck(unit_id, mass, radius, x, y, extra, extra2))
-    
 
 def dist2D(x1, y1, x2, y2):
     return math.sqrt((x2 - x1)**2 + (y2 - y1)**2)
 
-def think():
+def think_reaper():
     dist_min = INF
 
     nx = -1
@@ -115,15 +158,33 @@ def think():
             nx = w.x
             ny = w.y
 
+    # wreckがなかったらDestroyerに近寄っておく。
+    if nx == -1:
+        nx = my_destroyer[0].x
+        ny = my_destroyer[0].y
 
+    print(nx, ny, 300)
 
-    print(nx, ny, 300)        
+def think_destroyer():
+    dist_min = INF
+
+    nx = -1
+    ny = -1
+
+    for t in tanker:
+        dist = dist2D(my_destroyer[0].x, my_destroyer[0].y, t.x, t.y)
+        if dist < dist_min:
+            dist_min = dist
+            nx = t.x
+            ny = t.y
+
+    print(nx, ny, 300)
 
 if __name__ == "__main__":
     # main loop
     while True:
         game_turn_input()
-        think()
+        think_reaper()
+        think_destroyer()
 
-        print("WAIT")
         print("WAIT")
