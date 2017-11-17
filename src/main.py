@@ -11,6 +11,7 @@ INF = 9999999
 
 REAPER = 0
 DESTROYER = 1
+Doof = 2
 TANKER = 3
 WRECK = 4
 
@@ -44,6 +45,7 @@ class Destroyer:
         self.vy = vy
         self.extra = extra
         self.extra2 = extra2
+        self.target = -1
 
 class Tanker:
     def __init__(self, unit_id,
@@ -78,7 +80,7 @@ wreck = []
 
 # Function
 def game_turn_input():
-    global score, my_reaper, op_reaper, my_destroyer, op_destroyer, wreck
+    global score, my_reaper, op_reaper, my_destroyer, op_destroyer, tanker, wreck
 
     score = [None for x in range(PLAYER_NUM)]
     for i in range(PLAYER_NUM):
@@ -171,12 +173,22 @@ def think_destroyer():
     nx = -1
     ny = -1
 
+    if my_destroyer[0].target != -1:
+        for t in tanker:
+            if t.unit_id == my_destroyer[0].target:
+                nx = t.x
+                ny = t.x
+                break
+        else:
+            my_destroyer[0].target = -1
+
     for t in tanker:
         dist = dist2D(my_destroyer[0].x, my_destroyer[0].y, t.x, t.y)
         if dist < dist_min:
             dist_min = dist
             nx = t.x
             ny = t.y
+            my_destroyer[0].target = t.unit_id
 
     print(nx, ny, 300)
 
