@@ -3,7 +3,6 @@ import math
 import numpy as np
 
 
-
 # Constants
 DEBUG = True
 
@@ -11,7 +10,7 @@ INF = 9999999
 
 REAPER = 0
 DESTROYER = 1
-Doof = 2
+DOOF = 2
 TANKER = 3
 WRECK = 4
 
@@ -34,6 +33,20 @@ class Reaper:
         self.extra2 = extra2
 
 class Destroyer:
+    def __init__(self, unit_id, mass,
+                       radius, x, y, vx, vy, extra, extra2):
+        self.unit_id = unit_id
+        self.mass = mass
+        self.radius = radius
+        self.x = x
+        self.y = y
+        self.vx = vx
+        self.vy = vy
+        self.extra = extra
+        self.extra2 = extra2
+        self.target = -1
+
+class Doof:
     def __init__(self, unit_id, mass,
                        radius, x, y, vx, vy, extra, extra2):
         self.unit_id = unit_id
@@ -75,12 +88,14 @@ my_reaper = []
 op_reaper = []
 my_destroyer = []
 op_destroyer = []
+my_doof = []
+op_doof = []
 tanker = []
 wreck = []
 
 # Function
 def game_turn_input():
-    global score, my_reaper, op_reaper, my_destroyer, op_destroyer, tanker, wreck
+    global score, my_reaper, op_reaper, my_destroyer, op_destroyer, my_doof, op_doof, tanker, wreck
 
     score = [None for x in range(PLAYER_NUM)]
     for i in range(PLAYER_NUM):
@@ -97,6 +112,8 @@ def game_turn_input():
     op_reaper = []
     my_destroyer = []
     op_destroyer = []
+    my_doof = []
+    op_doof = []
     tanker = []
     wreck = []
 
@@ -124,18 +141,27 @@ def game_turn_input():
         extra2 = int(extra2)
 
         if unit_type == REAPER:
-            if (player_id == -1):
-                op_reaper.append(Reaper(unit_id, mass, radius, 
-                    x, y, vx, vy, extra, extra2))
-            else:
+            if player_id == 0:
                 my_reaper.append(Reaper(unit_id, mass, radius, 
                     x, y, vx, vy, extra, extra2))
+            else:
+                op_reaper.append(Reaper(unit_id, mass, radius, 
+                    x, y, vx, vy, extra, extra2))
+
         elif unit_type == DESTROYER:
-            if (player_id == -1):
-                op_destroyer.append(Destroyer(unit_id, mass, radius, 
+            if player_id == 0:
+                my_destroyer.append(Destroyer(unit_id, mass, radius, 
                     x, y, vx, vy, extra, extra2))
             else:
-                my_destroyer.append(Destroyer(unit_id, mass, radius, 
+                op_destroyer.append(Destroyer(unit_id, mass, radius, 
+                    x, y, vx, vy, extra, extra2))
+
+        elif unit_type == DOOF:
+            if player_id == 0:
+                my_doof.append(Doof(unit_id, mass, radius, 
+                    x, y, vx, vy, extra, extra2))
+            else:
+                op_doof.append(Doof(unit_id, mass, radius, 
                     x, y, vx, vy, extra, extra2))
 
         elif unit_type == TANKER:
@@ -147,6 +173,9 @@ def game_turn_input():
 def dist2D(x1, y1, x2, y2):
     return math.sqrt((x2 - x1)**2 + (y2 - y1)**2)
 
+def sigmoid(x):
+    return 1 / (1 + math.exp(-x))
+    
 def think_reaper():
     dist_min = INF
 
@@ -165,7 +194,8 @@ def think_reaper():
         nx = my_destroyer[0].x
         ny = my_destroyer[0].y
 
-    print(nx, ny, 300)
+    # スロットルをsigmoid関数によりなめらかに調整。
+    print(nx, ny, (int)(300 * sigmoid(dist_min)))
 
 def think_destroyer():
     dist_min = INF
@@ -192,11 +222,27 @@ def think_destroyer():
 
     print(nx, ny, 300)
 
+def think_doof():
+    # とりあえず最も近い相手のReaperにフルスロットルで近づいてみる。
+    dist_min = INF
+
+    nx = -1
+    ny = -1
+
+    for r in op_reaper:
+        dist = dist2D(my_doof[0].x, my_doof[0].y, r.x, r.y)
+        if dist < dist_min:
+            dist_min = dist
+            nx = r.x
+            ny = r.y
+
+    print(nx, ny, 300)
+
 if __name__ == "__main__":
     # main loop
     while True:
         game_turn_input()
         think_reaper()
         think_destroyer()
-
-        print("WAIT")
+        think_doof()
+        
