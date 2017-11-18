@@ -14,6 +14,8 @@ DESTROYER = 1
 DOOF = 2
 TANKER = 3
 WRECK = 4
+TAR_POOL = 5
+OIL_POOL = 6
 
 PLAYER_NUM = 3
 AREA_RADIUS = 6000
@@ -83,6 +85,28 @@ class Wreck:
         self.extra = extra
         self.extra2 = extra2
 
+class TarPool:
+    def __init__(self, unit_id,
+                       mass, radius, x, y, extra, extra2):
+        self.unit_id = unit_id
+        self.mass = mass
+        self.radius = radius
+        self.x = x
+        self.y = y
+        self.extra = extra
+        self.extra2 = extra2
+
+class OilPool:
+    def __init__(self, unit_id,
+                       mass, radius, x, y, extra, extra2):
+        self.unit_id = unit_id
+        self.mass = mass
+        self.radius = radius
+        self.x = x
+        self.y = y
+        self.extra = extra
+        self.extra2 = extra2
+
 # Global
 score = []
 rage = []
@@ -94,10 +118,14 @@ my_doof = None
 op_doof = []
 tanker = []
 wreck = []
+tar_pool = []
+oil_pool = []
 
 # Function
 def game_turn_input():
-    global score, rage, my_reaper, op_reaper, my_destroyer, op_destroyer, my_doof, op_doof, tanker, wreck
+    global score, rage
+    global my_reaper, op_reaper, my_destroyer, op_destroyer, my_doof, op_doof
+    global tanker, wreck, tar_pool, oil_pool
 
     score = [None for x in range(PLAYER_NUM)]
     for i in range(PLAYER_NUM):
@@ -119,6 +147,8 @@ def game_turn_input():
     op_doof = []
     tanker = []
     wreck = []
+    tar_pool = []
+    oil_pool = []
 
     unit_count = int(input())
     if DEBUG:
@@ -170,6 +200,12 @@ def game_turn_input():
         elif unit_type == WRECK:
             wreck.append(Wreck(unit_id, mass, radius, x, y, extra, extra2))
 
+        elif unit_type == TAR_POOL:
+            tar_pool.append(TarPool(unit_id, mass, radius, x, y, extra, extra2))
+
+        elif unit_type == OIL_POOL:
+            oil_pool.append(OilPool(unit_id, mass, radius, x, y, extra, extra2))
+
 def dist2D(x1, y1, x2, y2):
     return math.sqrt((x2 - x1)**2 + (y2 - y1)**2)
 
@@ -180,6 +216,8 @@ def speed(vx, vy):
     return math.sqrt(vx**2 + vy**2)
 
 def think_reaper():
+    global rage
+    
     start_time = time.time()
 
     dist_min = INF
@@ -194,8 +232,8 @@ def think_reaper():
             nx = w.x
             ny = w.y
 
+    # wreckがなかったら、Tankerに一番近いDestroyerに近寄っておく。
     if dist_min == INF:
-        # wreckがなかったら、Tankerに一番近いDestroyerに近寄っておく。
         nx = my_destroyer.x
         ny = my_destroyer.y
         for t in tanker:
@@ -218,32 +256,50 @@ def think_reaper():
     print(nx, ny, (int)(300 * sigmoid(dist_min - speed(my_destroyer.vx, my_destroyer.vy))), elapsed)
 
 def think_destroyer():
+    global rage
+
     start_time = time.time()
 
-    # 密集していたらGrenadeを投げる。
+    # 相手のWreckを取られそうだったら、Grenadeを投げる。
     if rage[0] >= 60:
-        xs = [e.x for e in op_reaper + op_destroyer + op_doof]
-        ys = [e.y for e in op_reaper + op_destroyer + op_doof]
-        tx = int(np.mean(xs))
-        ty = int(np.mean(ys))
-        if dist2D(my_destroyer.x, my_destroyer.y, tx, ty) < 2000:
-            print("SKILL", tx, ty)
-            return
-
+        for w in wreck:
+            dist = dist2D(my_destroyer.x, my_destroyer.y, w.x, w.y)
+            if dist < 2000: 
+                my_dist = dist2D(my_reaper.x, my_reaper.y, w.x, w.y)            
+                # 相手がこのWreckから水を得そうならば、Grenadeを投擲。
+                for r in op_reaper:
+                    dx = w.x - r.x
+                    dy = w.y - r.y
+                    dot = dx * r.vx + dy * r.vy
+                    if dot > 0:
+                        op_dist = dist2D(w.x, w.y, r.x, r.y)
+                        if op_dist < my_dist and op_dist < 3000:
+                            print("SKILL", w.x, w.y)
+                            rage[0] -= 60
+                            return
     dist_min = INF
 
     nx = -1
     ny = -1
 
+    # 前ターンに狙ったものがあれば、それを狙う。
     for t in tanker:
         if t.unit_id == my_destroyer.target:
             nx = t.x
             ny = t.x
             break
+    # 一番近いものを壊せばいいわけではない。相手に取られそうな場合には破壊しない。
     else:
         for t in tanker:
             dist = dist2D(my_destroyer.x, my_destroyer.y, t.x, t.y)
-            if dist < dist_min:
+            my_dist = dist2D(my_reaper.x, my_reaper.y, t.x, t.y)
+            op_dist_min = INF
+            for r in op_reaper:
+                dist_op = dist2D(r.x, r.y, t.x, t.y)
+                if dist_op < op_dist_min:
+                    op_dist_min = dist_op
+
+            if dist < dist_min and my_dist < op_dist_min:
                 dist_min = dist
                 nx = t.x
                 ny = t.y
@@ -253,21 +309,47 @@ def think_destroyer():
     print(nx, ny, 300, elapsed)
 
 def think_doof():
+    global rage
+
     start_time = time.time()
 
     # とりあえず最も近い相手のReaperにフルスロットルで近づいてみる。
     # 行きたいところに先回りして、邪魔をする。
+
+    # Wreckが取られそうならOil Poolを作成。
+    # ToDo: ほかのUnitがrage を使用していたら、rageが足りなくなるかもしれないことに注意。
+    if rage[0] >= 30:
+        # 今自分のDoofがWreckにいるか
+        for w in wreck:
+            dist = dist2D(my_doof.x, my_doof.y, w.x, w.y)
+            if dist < 2000:
+                my_dist = dist2D(my_reaper.x, my_reaper.y, w.x, w.y)            
+                # 相手がこのWreckから水を得そうならば、Oil Poolを作成
+                # 水を得そうとは、
+                #  - ある程度距離が近い (ToDo)
+                #  - Wreckに向かっている
+                for r in op_reaper:
+                    dx = w.x - r.x
+                    dy = w.y - r.y
+                    dot = dx * r.vx + dy * r.vy
+                    if dot > 0:
+                        op_dist = dist2D(w.x, w.y, r.x, r.y)
+                        if op_dist < my_dist and op_dist < 3000:
+                            print("SKILL", w.x, w.y)
+                            rage[0] -= 30
+                            return
+
     dist_min = INF
 
     nx = -1
     ny = -1
 
-    for r in op_reaper:
-        dist = dist2D(my_doof.x, my_doof.y, r.x, r.y)
+    for d in op_destroyer:
+        dist = dist2D(my_doof.x, my_doof.y, d.x, d.y)
         if dist < dist_min:
             dist_min = dist
-            nx = r.x
-            ny = r.y
+            nx = d.x
+            ny = d.y
 
     elapsed = time.time() - start_time
     print(nx, ny, 300, elapsed)
