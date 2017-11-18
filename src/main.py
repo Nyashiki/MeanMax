@@ -224,6 +224,7 @@ def think_reaper():
 
     nx = -1
     ny = -1
+    throttle = 100
 
     for w in wreck:
         dist = dist2D(my_reaper.x, my_reaper.y, w.x, w.y)
@@ -231,29 +232,37 @@ def think_reaper():
             dist_min = dist
             nx = w.x
             ny = w.y
+            xx = my_reaper.x + my_reaper.vx / 0.2
+            yy = my_reaper.y + my_reaper.vy / 0.2
+            if dist2D(xx, yy, w.x, w.y) < w.radius:
+                throttle = 1
+            else:
+                dist_2 = dist2D(xx, yy, w.x, w.y)
+                throttle = int(300 * sigmoid(dist_2))
 
     # wreckがなかったら、Tankerに一番近いDestroyerに近寄っておく。
     if dist_min == INF:
         nx = my_destroyer.x
         ny = my_destroyer.y
-        for t in tanker:
-            dist = dist2D(my_destroyer.x, my_destroyer.y, t.x, t.y)
-            if dist < dist_min:
-                nx = t.x
-                ny = t.y
-        
+        xx = my_reaper.x + my_reaper.vx / 0.2
+        yy = my_reaper.y + my_reaper.vy / 0.2
+
         for d in op_destroyer:
             for t in tanker:
                 dist = dist2D(d.x, d.y, t.x, t.y)
                 if dist < dist_min:
                     dist = dist_min
-                    nx = t.x
-                    ny = t.y
-        
+                    nx = d.x
+                    ny = d.y
+                if dist2D(xx, yy, d.x, d.y) < d.radius:
+                    throttle = 0
+                else:
+                    dist_2 = dist2D(xx, yy, d.x, d.y)
+                    throttle = int(300 * sigmoid(dist_2))
+
     elapsed = time.time() - start_time
-    # スロットルをsigmoid関数によりなめらかに調整。
-    # 現在の速度も考慮。
-    print(nx, ny, (int)(300 * sigmoid(dist_min - speed(my_destroyer.vx, my_destroyer.vy))), elapsed)
+
+    print(nx, ny, throttle, elapsed)
 
 def think_destroyer():
     global rage
@@ -344,12 +353,12 @@ def think_doof():
     nx = -1
     ny = -1
 
-    for d in op_destroyer:
-        dist = dist2D(my_doof.x, my_doof.y, d.x, d.y)
+    for r in op_reaper:
+        dist = dist2D(my_doof.x, my_doof.y, r.x, r.y)
         if dist < dist_min:
             dist_min = dist
-            nx = d.x
-            ny = d.y
+            nx = r.x
+            ny = r.y
 
     elapsed = time.time() - start_time
     print(nx, ny, 300, elapsed)
