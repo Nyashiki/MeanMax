@@ -1,4 +1,5 @@
 import sys
+import time
 import math
 import numpy as np
 
@@ -179,6 +180,8 @@ def speed(vx, vy):
     return math.sqrt(vx**2 + vy**2)
 
 def think_reaper():
+    start_time = time.time()
+
     dist_min = INF
 
     nx = -1
@@ -209,12 +212,14 @@ def think_reaper():
                     nx = t.x
                     ny = t.y
         
-
+    elapsed = time.time() - start_time
     # スロットルをsigmoid関数によりなめらかに調整。
     # 現在の速度も考慮。
-    print(nx, ny, (int)(300 * sigmoid(dist_min - speed(my_destroyer.vx, my_destroyer.vy))))
+    print(nx, ny, (int)(300 * sigmoid(dist_min - speed(my_destroyer.vx, my_destroyer.vy))), elapsed)
 
 def think_destroyer():
+    start_time = time.time()
+
     # 密集していたらGrenadeを投げる。
     if rage[0] >= 60:
         xs = [e.x for e in op_reaper + op_destroyer + op_doof]
@@ -244,9 +249,12 @@ def think_destroyer():
                 ny = t.y
                 my_destroyer.target = t.unit_id
 
-    print(nx, ny, 300)
+    elapsed = time.time() - start_time
+    print(nx, ny, 300, elapsed)
 
 def think_doof():
+    start_time = time.time()
+
     # とりあえず最も近い相手のReaperにフルスロットルで近づいてみる。
     # 行きたいところに先回りして、邪魔をする。
     dist_min = INF
@@ -261,7 +269,8 @@ def think_doof():
             nx = r.x
             ny = r.y
 
-    print(nx, ny, 300)
+    elapsed = time.time() - start_time
+    print(nx, ny, 300, elapsed)
 
 if __name__ == "__main__":
     # main loop
