@@ -107,3 +107,13 @@ CodinGame contest "mean-max" 2017/11/18 02:00~ (JST)
     - rage 30
     - Wreckから水を取れなくする
     - 摩擦無効化
+
+
+# 考察
+- 各ユニットの行動
+- Reaper
+    - 相手のDestroyerにくっつくのが強そう
+
+- Destroyer
+- Doof
+    - 相手のReaperにくっつくのが強そう
