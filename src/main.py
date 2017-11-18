@@ -175,6 +175,9 @@ def dist2D(x1, y1, x2, y2):
 def sigmoid(x):
     return 1 / (1 + math.exp(-x))
     
+def speed(vx, vy):
+    return math.sqrt(vx**2 + vy**2)
+
 def think_reaper():
     dist_min = INF
 
@@ -188,15 +191,40 @@ def think_reaper():
             nx = w.x
             ny = w.y
 
-    # wreckがなかったらDestroyerに近寄っておく。
-    if nx == -1:
+    if dist_min == INF:
+        # wreckがなかったら、Tankerに一番近いDestroyerに近寄っておく。
         nx = my_destroyer.x
         ny = my_destroyer.y
+        for t in tanker:
+            dist = dist2D(my_destroyer.x, my_destroyer.y, t.x, t.y)
+            if dist < dist_min:
+                nx = t.x
+                ny = t.y
+        
+        for d in op_destroyer:
+            for t in tanker:
+                dist = dist2D(d.x, d.y, t.x, t.y)
+                if dist < dist_min:
+                    dist = dist_min
+                    nx = t.x
+                    ny = t.y
+        
 
     # スロットルをsigmoid関数によりなめらかに調整。
-    print(nx, ny, (int)(300 * sigmoid(dist_min)))
+    # 現在の速度も考慮。
+    print(nx, ny, (int)(300 * sigmoid(dist_min - speed(my_destroyer.vx, my_destroyer.vy))))
 
 def think_destroyer():
+    # 密集していたらGrenadeを投げる。
+    if rage[0] >= 60:
+        xs = [e.x for e in op_reaper + op_destroyer + op_doof]
+        ys = [e.y for e in op_reaper + op_destroyer + op_doof]
+        tx = int(np.mean(xs))
+        ty = int(np.mean(ys))
+        if dist2D(my_destroyer.x, my_destroyer.y, tx, ty) < 2000:
+            print("SKILL", tx, ty)
+            return
+
     dist_min = INF
 
     nx = -1
