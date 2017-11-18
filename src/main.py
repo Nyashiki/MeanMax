@@ -84,18 +84,19 @@ class Wreck:
 
 # Global
 score = []
-my_reaper = []
+rage = []
+my_reaper = None
 op_reaper = []
-my_destroyer = []
+my_destroyer = None
 op_destroyer = []
-my_doof = []
+my_doof = None
 op_doof = []
 tanker = []
 wreck = []
 
 # Function
 def game_turn_input():
-    global score, my_reaper, op_reaper, my_destroyer, op_destroyer, my_doof, op_doof, tanker, wreck
+    global score, rage, my_reaper, op_reaper, my_destroyer, op_destroyer, my_doof, op_doof, tanker, wreck
 
     score = [None for x in range(PLAYER_NUM)]
     for i in range(PLAYER_NUM):
@@ -103,16 +104,17 @@ def game_turn_input():
         if DEBUG:
             sys.stderr.write(str(score[i]) + "\n")
 
+    rage = [None for x in range(PLAYER_NUM)]
     for i in range(PLAYER_NUM):
-        x = input()
+        rage[i] = int(input())
         if DEBUG:
-            sys.stderr.write(x + "\n")
+            sys.stderr.write(str(rage[i]) + "\n")
     
-    my_reaper = []
+    my_reaper = None
     op_reaper = []
-    my_destroyer = []
+    my_destroyer = None
     op_destroyer = []
-    my_doof = []
+    my_doof = None
     op_doof = []
     tanker = []
     wreck = []
@@ -142,24 +144,21 @@ def game_turn_input():
 
         if unit_type == REAPER:
             if player_id == 0:
-                my_reaper.append(Reaper(unit_id, mass, radius, 
-                    x, y, vx, vy, extra, extra2))
+                my_reaper = Reaper(unit_id, mass, radius, x, y, vx, vy, extra, extra2)
             else:
                 op_reaper.append(Reaper(unit_id, mass, radius, 
                     x, y, vx, vy, extra, extra2))
 
         elif unit_type == DESTROYER:
             if player_id == 0:
-                my_destroyer.append(Destroyer(unit_id, mass, radius, 
-                    x, y, vx, vy, extra, extra2))
+                my_destroyer = Destroyer(unit_id, mass, radius, x, y, vx, vy, extra, extra2)
             else:
                 op_destroyer.append(Destroyer(unit_id, mass, radius, 
                     x, y, vx, vy, extra, extra2))
 
         elif unit_type == DOOF:
             if player_id == 0:
-                my_doof.append(Doof(unit_id, mass, radius, 
-                    x, y, vx, vy, extra, extra2))
+                my_doof = Doof(unit_id, mass, radius, x, y, vx, vy, extra, extra2)
             else:
                 op_doof.append(Doof(unit_id, mass, radius, 
                     x, y, vx, vy, extra, extra2))
@@ -183,7 +182,7 @@ def think_reaper():
     ny = -1
 
     for w in wreck:
-        dist = dist2D(my_reaper[0].x, my_reaper[0].y, w.x, w.y)
+        dist = dist2D(my_reaper.x, my_reaper.y, w.x, w.y)
         if dist < dist_min:
             dist_min = dist
             nx = w.x
@@ -191,8 +190,8 @@ def think_reaper():
 
     # wreckがなかったらDestroyerに近寄っておく。
     if nx == -1:
-        nx = my_destroyer[0].x
-        ny = my_destroyer[0].y
+        nx = my_destroyer.x
+        ny = my_destroyer.y
 
     # スロットルをsigmoid関数によりなめらかに調整。
     print(nx, ny, (int)(300 * sigmoid(dist_min)))
@@ -203,34 +202,32 @@ def think_destroyer():
     nx = -1
     ny = -1
 
-    if my_destroyer[0].target != -1:
-        for t in tanker:
-            if t.unit_id == my_destroyer[0].target:
-                nx = t.x
-                ny = t.x
-                break
-        else:
-            my_destroyer[0].target = -1
-
     for t in tanker:
-        dist = dist2D(my_destroyer[0].x, my_destroyer[0].y, t.x, t.y)
-        if dist < dist_min:
-            dist_min = dist
+        if t.unit_id == my_destroyer.target:
             nx = t.x
-            ny = t.y
-            my_destroyer[0].target = t.unit_id
+            ny = t.x
+            break
+    else:
+        for t in tanker:
+            dist = dist2D(my_destroyer.x, my_destroyer.y, t.x, t.y)
+            if dist < dist_min:
+                dist_min = dist
+                nx = t.x
+                ny = t.y
+                my_destroyer.target = t.unit_id
 
     print(nx, ny, 300)
 
 def think_doof():
     # とりあえず最も近い相手のReaperにフルスロットルで近づいてみる。
+    # 行きたいところに先回りして、邪魔をする。
     dist_min = INF
 
     nx = -1
     ny = -1
 
     for r in op_reaper:
-        dist = dist2D(my_doof[0].x, my_doof[0].y, r.x, r.y)
+        dist = dist2D(my_doof.x, my_doof.y, r.x, r.y)
         if dist < dist_min:
             dist_min = dist
             nx = r.x
