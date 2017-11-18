@@ -23,8 +23,9 @@ REAPER_RADIUS = 400
 
 # Class
 class Reaper:
-    def __init__(self, unit_id, mass,
+    def __init__(self, unit_id, player_id, mass,
                        radius, x, y, vx, vy, extra, extra2):
+        self.player_id = player_id
         self.unit_id = unit_id
         self.mass = mass
         self.radius = radius
@@ -175,9 +176,9 @@ def game_turn_input():
 
         if unit_type == REAPER:
             if player_id == 0:
-                my_reaper = Reaper(unit_id, mass, radius, x, y, vx, vy, extra, extra2)
+                my_reaper = Reaper(unit_id, player_id, mass, radius, x, y, vx, vy, extra, extra2)
             else:
-                op_reaper.append(Reaper(unit_id, mass, radius, 
+                op_reaper.append(Reaper(unit_id, player_id, mass, radius, 
                     x, y, vx, vy, extra, extra2))
 
         elif unit_type == DESTROYER:
@@ -240,24 +241,24 @@ def think_reaper():
                 dist_2 = dist2D(xx, yy, w.x, w.y)
                 throttle = int(300 * sigmoid(dist_2))
 
-    # wreckがなかったら、Tankerに一番近いDestroyerに近寄っておく。
+    # wreckがなかったら、Destroyerが一番違いTankerに近寄っておく。
     if dist_min == INF:
         nx = my_destroyer.x
         ny = my_destroyer.y
         xx = my_reaper.x + my_reaper.vx / 0.2
         yy = my_reaper.y + my_reaper.vy / 0.2
 
-        for d in op_destroyer:
+        for d in [my_destroyer] + op_destroyer:
             for t in tanker:
                 dist = dist2D(d.x, d.y, t.x, t.y)
                 if dist < dist_min:
                     dist = dist_min
-                    nx = d.x
-                    ny = d.y
+                    nx = t.x
+                    ny = t.y
                 if dist2D(xx, yy, d.x, d.y) < d.radius:
                     throttle = 0
                 else:
-                    dist_2 = dist2D(xx, yy, d.x, d.y)
+                    dist_2 = dist2D(xx, yy, t.x, t.y)
                     throttle = int(300 * sigmoid(dist_2))
 
     elapsed = time.time() - start_time
@@ -348,20 +349,23 @@ def think_doof():
                             rage[0] -= 30
                             return
 
+    score_max_op_player = 1 if score[1] > score[2] else 2
     dist_min = INF
-
     nx = -1
     ny = -1
+    throttle = 100
 
     for r in op_reaper:
-        dist = dist2D(my_doof.x, my_doof.y, r.x, r.y)
-        if dist < dist_min:
-            dist_min = dist
-            nx = r.x
-            ny = r.y
+        if r.player_id == score_max_op_player:
+            dist = dist2D(my_doof.x, my_doof.y, r.x, r.y)
+            if dist < dist_min:
+                dist_min = dist
+                nx = r.x
+                ny = r.y
+                throttle = int(300 * sigmoid(dist_min))
 
     elapsed = time.time() - start_time
-    print(nx, ny, 300, elapsed)
+    print(nx, ny, throttle, elapsed)
 
 if __name__ == "__main__":
     # main loop
