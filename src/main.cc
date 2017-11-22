@@ -86,22 +86,34 @@ State current_state;
 void Input(State& s) {
   for (int i = 0; i < 3; i++) {
     cin >> score[i];
+#ifdef DEBUG
+    cerr << score[i] << " \n"[i == 2];
+#endif
   }
 
   for (int i = 0; i < 3; i++) {
     cin >> s.rage[i];
+#ifdef DEBUG
+    cerr << s.rage[i] << " \n"[i == 2];
+#endif
   }
 
   int unit_count;
   cin >> unit_count;
-
+#ifdef DEBUG
+  cerr << unit_count << endl;
+#endif
   s.tanker_count = 0;
   s.wreck_count = 0;
   while (unit_count--) {
     int unit_id, unit_type, player_id, radius, x, y, vx, vy, extra, extra2;
     double mass;
     cin >> unit_id >> unit_type >> player_id >> mass >> radius >> x >> y >> vx >> vy >> extra >> extra2;
-
+#ifdef DEBUG
+    cerr << unit_id << " " << unit_type << " " << player_id << " " 
+         << mass << " " << radius << " " << x << " " << y << " "
+         << vx << " " << vy << " " << extra << " " << extra2 << endl;
+#endif
     if (unit_type == 0) { // Reaper
       s.reaper[player_id] = Reaper(mass, radius, x, y, vx, vy);
     } else if (unit_type == 1) { // Destroyer 
