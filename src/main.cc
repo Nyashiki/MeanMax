@@ -155,18 +155,19 @@ struct Action {
 
 struct Search {
   int score;
+  int prev_dir;
   State state;
   Action first_action;
 
   Search() = default;
-  Search(int score, State state): score(score), state(state) { }
+  Search(int score, int dir, State state): score(score), prev_dir(dir), state(state) { }
 };
 
 class PriorityQueue {
 
 private:
 
-  const int _MAX = 1024;
+  const int _MAX = 2048;
   Search* _c;
   int _size;
 
@@ -227,8 +228,8 @@ public:
 };
 
 
-int dx[4] = { 0, 1, 0, -1 };
-int dy[4] = { -1, 1, 0, 1 };
+int dx[8] = { 0, 1, 0, -1, 1, 1, -1, -1 };
+int dy[8] = { -1, 1, 0, 1, -1, 1, 1, -1 };
 
 double Distance2D(Point p1, Point p2) {
   return sqrt((p2.x - p1.x) * (p2.x - p1.x) + (p2.y - p1.y) * (p2.y - p1.y));
@@ -236,19 +237,21 @@ double Distance2D(Point p1, Point p2) {
 
 void Reaper(const State& state) {
 
-  const int MAX_TURN = 7;
+  const int MAX_TURN = 11;
   PriorityQueue que[MAX_TURN + 1];
   for (int i = 0; i < MAX_TURN + 1; i++) {
     que[i].init();
   }
-  que[0].push(Search(0, state));
+  que[0].push(Search(0, -1, state));
 
+  int loop = 0;
 #ifdef DEBUG
-  for (int loop = 0; loop < 600; loop++) {
+  for (; loop < 600; ) {
 #else
   double start_time = GetMS();
   while (GetMS() - start_time < 40) {
 #endif
+    loop++;
     for (int turn = 0; turn < MAX_TURN; turn++) {
       if (que[turn].empty()) {
         continue;
@@ -262,27 +265,28 @@ void Reaper(const State& state) {
       for (int i = 0; i < s.state.wreck_count; i++) {
         double distance = Distance2D(s.state.reaper[0], s.state.wreck[i]);
         if (distance < s.state.wreck[i].radius) {
-          s.score += (100 + MAX_TURN - turn); // 早めにとるようにする。
+          s.score += (300 + MAX_TURN - turn); // 早めにとるようにする。
         }
       }
 
       // ToDo: 探索で即時報酬（水）が得られていないときの行動。
-      //    - とりあえず、destroyerとの距離。
+      //    - とりあえず、destroyerとの距離が近いほど良い。
       for (int i = 0; i < 3; i++) {
         s.score -= (Distance2D(s.state.reaper[0], s.state.destroyer[i]) / 5000);
       }
 
-      for (int dir = 0; dir < 4; dir++) {
+      for (int dir = 0; dir < 8; dir++) {
         int nx = s.state.reaper[0].x + dx[dir];
         int ny = s.state.reaper[0].y + dy[dir];
-        // ToDo: とりあえず100刻みで動かす。
-        for (int th = 100; th <= 300; th += 100) {
+        // 要検討: もしかして、常に300で動き続けていいのでは。
+        for (int th = 300; th <= 300; th += 100) {
+          int ex_score = 0;
           int temp_x  = s.state.reaper[0].x;
           int temp_y  = s.state.reaper[0].y;
           int temp_vx = s.state.reaper[0].vx;
           int temp_vy = s.state.reaper[0].vy;
 
-          int speed = (th * 0.714); // th / mass * distance ~= th * 0.714
+          int speed = (dir < 4)? th * 2 : (th * 0.714); // th / mass / distance ~= th * 0.714
           
           s.state.reaper[0].vx += (nx - s.state.reaper[0].x) * speed;
           s.state.reaper[0].vy += (ny - s.state.reaper[0].y) * speed;
@@ -296,6 +300,15 @@ void Reaper(const State& state) {
           if (turn == 0) {
             s.first_action = Action(nx, ny, th);  
           }
+          // 遠い場所を効率よく探索するため
+          ex_score += (th / 100);
+          // 同じ方向に動き続けることは、基本的に良いこと
+          if (dir == s.prev_dir) {
+            ex_score += 10;
+          }
+          
+          s.score += ex_score;
+          s.prev_dir = dir;
           que[turn + 1].push(s);
 
           // Undo
@@ -303,14 +316,17 @@ void Reaper(const State& state) {
           s.state.reaper[0].y = temp_y;
           s.state.reaper[0].vx = temp_vx;
           s.state.reaper[0].vy = temp_vy;
+
+          s.score -= ex_score;
         }
       }
-      
     }
   }
 
   Action first_action = que[MAX_TURN].top().first_action;
-  cerr << "[reaper] " << que[MAX_TURN].top().score << endl;
+  cerr << "[reaper] " << endl;
+  cerr << "  loop: " << loop << endl;
+  cerr << "  score: " << que[MAX_TURN].top().score << endl;
 
   if (first_action.action_type == MOVE) {
     cout << first_action.x << " " << first_action.y << " " << first_action.throttle << endl;
