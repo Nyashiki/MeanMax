@@ -246,6 +246,11 @@ void Reaper(const State& state) {
   }
 }
 
+void Doof(const State& state) {
+  int op_max_score_id = (score[1] > score[2])? 1 : 2;
+  cout << state.reaper[op_max_score_id].x << " "
+       << state.reaper[op_max_score_id].y << " " << 300 << endl;
+}
 
 }
 
@@ -257,7 +262,7 @@ int main() {
     
     Think::Reaper(current_state);
     cout << "WAIT" << endl;
-    cout << "WAIT" << endl;
+    Think::Doof(current_state);
   }
 
   return 0;
