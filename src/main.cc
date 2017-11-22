@@ -1,11 +1,15 @@
 #include <iostream>
 #include <cassert>
-#include <queue>
 #include <cmath>
+#include <sys/time.h>
 
 using namespace std;
 
 // #define DEBUG 
+
+double GetMS() { struct timeval t; gettimeofday(&t, NULL); return (double)t.tv_sec * 1000 + (double)t.tv_usec / 1000; }
+
+const int INF = 99999;
 
 struct Point {
   int x, y;
@@ -156,11 +160,72 @@ struct Search {
 
   Search() = default;
   Search(int score, State state): score(score), state(state) { }
+};
 
-  bool operator<(const Search& s) const {
-    return score < s.score;
+class PriorityQueue {
+
+private:
+
+  const int _MAX = 1024;
+  Search* _c;
+  int _size;
+
+public:
+
+  PriorityQueue() {
+    _c = new Search[_MAX + 1];
+  }
+
+  ~PriorityQueue() {
+    delete[] _c;
+  }
+
+  void init() {
+    _size = 0;
+  }
+
+  bool empty() {
+    return _size == 0;
+  }
+
+  Search top() {
+    return _c[0];
+  }
+
+  void push(Search x) {
+    int i = _size++;
+    if (_size >= _MAX) {
+      _size = _MAX - 1;
+    }
+    while (i > 0) {
+      int p = (i - 1) / 2;
+      if (_c[p].score >= x.score) {
+        break;
+      }
+      _c[i] = _c[p];
+      i = p;
+    }
+    _c[i] = x;
+  }
+
+  void pop() {
+    Search x = _c[--_size];
+    int i = 0;
+    while (i * 2 + 1 < _size) {
+      int a = i * 2 + 1, b = i * 2 + 2;
+      if (b < _size && _c[b].score > _c[a].score) {
+        a = b;
+      }
+      if (_c[a].score <= x.score) {
+        break;
+      }
+      _c[i] = _c[a];
+      i = a;
+    }
+    _c[i] = x;
   }
 };
+
 
 int dx[4] = { 0, 1, 0, -1 };
 int dy[4] = { -1, 1, 0, 1 };
@@ -171,11 +236,19 @@ double Distance2D(Point p1, Point p2) {
 
 void Reaper(const State& state) {
 
-  const int MAX_TURN = 5;
-  priority_queue<Search> que[MAX_TURN + 1];
+  const int MAX_TURN = 7;
+  PriorityQueue que[MAX_TURN + 1];
+  for (int i = 0; i < MAX_TURN + 1; i++) {
+    que[i].init();
+  }
   que[0].push(Search(0, state));
 
+#ifdef DEBUG
   for (int loop = 0; loop < 600; loop++) {
+#else
+  double start_time = GetMS();
+  while (GetMS() - start_time < 40) {
+#endif
     for (int turn = 0; turn < MAX_TURN; turn++) {
       if (que[turn].empty()) {
         continue;
@@ -246,6 +319,29 @@ void Reaper(const State& state) {
   }
 }
 
+void Destroyer(const State& state) {
+  if (state.tanker_count == 0) {
+    int op_max_score_id = (score[1] > score[2])? 1 : 2;
+    cout << state.reaper[op_max_score_id].x << " "
+       << state.reaper[op_max_score_id].y << " " << 300 << endl;
+  } else {
+    int dist_min_tanker_idx = 0;
+    double distance_min = INF;
+
+    for (int i = 0; i < state.tanker_count; i++) {
+      double distance = Distance2D(state.destroyer[0], state.tanker[i]);
+      if (distance < distance_min) {
+        distance = distance_min;
+        dist_min_tanker_idx = i;
+      } 
+    }
+
+    cout << state.tanker[dist_min_tanker_idx].x << " "
+         << state.tanker[dist_min_tanker_idx].y << " "
+         << 300 << endl;
+  }
+}
+
 void Doof(const State& state) {
   int op_max_score_id = (score[1] > score[2])? 1 : 2;
   cout << state.reaper[op_max_score_id].x << " "
@@ -261,7 +357,7 @@ int main() {
     Input(current_state);
     
     Think::Reaper(current_state);
-    cout << "WAIT" << endl;
+    Think::Destroyer(current_state);
     Think::Doof(current_state);
   }
 
