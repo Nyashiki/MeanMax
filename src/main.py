@@ -229,19 +229,25 @@ def think_reaper():
 
     for w in wreck:
         dist = dist2D(my_reaper.x, my_reaper.y, w.x, w.y)
-        if dist < dist_min:
-            dist_min = dist
-            nx = w.x
-            ny = w.y
-            xx = my_reaper.x + my_reaper.vx / 0.2
-            yy = my_reaper.y + my_reaper.vy / 0.2
-            if dist2D(xx, yy, w.x, w.y) < w.radius:
-                throttle = 1
-            else:
-                dist_2 = dist2D(xx, yy, w.x, w.y)
-                throttle = int(300 * sigmoid(dist_2))
+        # 既に相手のReaperがいたら諦める。
+        for r in op_reaper:
+            dist_op = dist2D(r.x, r.y, w.x, w.y)
+            if dist > w.radius and dist_op < w.radius:
+                break
+        else:
+            if dist < dist_min:
+                dist_min = dist
+                nx = w.x
+                ny = w.y
+                xx = my_reaper.x + my_reaper.vx / 0.2
+                yy = my_reaper.y + my_reaper.vy / 0.2
+                if dist2D(xx, yy, w.x, w.y) < w.radius:
+                    throttle = 1
+                else:
+                    dist_2 = dist2D(xx, yy, w.x, w.y)
+                    throttle = int(300 * sigmoid(dist_2))
 
-    # wreckがなかったら、Destroyerが一番違いTankerに近寄っておく。
+    # wreckがなかったら、Destroyerが一番近いTankerに近寄っておく。
     if dist_min == INF:
         nx = my_destroyer.x
         ny = my_destroyer.y
