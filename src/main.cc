@@ -69,13 +69,15 @@ struct Wreck : Unit {
 };
 
 struct Tar : Unit {
+  int remain;
   Tar() = default;
-  Tar(int radius, int x, int y): Unit(-1, radius, x, y) {  }
+  Tar(int radius, int x, int y, int remain): Unit(-1, radius, x, y), remain(remain) {  }
 };
 
 struct Oil : Unit {
+  int remain;
   Oil() = default;
-  Oil(int radius, int x, int y): Unit(-1, radius, x, y) { } 
+  Oil(int radius, int x, int y, int remain): Unit(-1, radius, x, y), remain(remain) { } 
 };
 
 struct State {
@@ -141,9 +143,9 @@ void Input(State& s) {
     } else if (unit_type == 4) { // Wreck
       s.wreck[s.wreck_count++] = Wreck(mass, radius, x, y, extra);
     } else if (unit_type == 5) { // Tar pool
-      s.tar[s.tar_count++] = Tar(radius, x, y);
+      s.tar[s.tar_count++] = Tar(radius, x, y, extra);
     } else if (unit_type == 6) { // Oil pool
-      s.oil[s.oil_count++] = Oil(radius, x, y);
+      s.oil[s.oil_count++] = Oil(radius, x, y, extra);
     } else {
       assert(false);
     }
@@ -278,7 +280,17 @@ void Reaper(const State& state) {
       for (int i = 0; i < s.state.wreck_count; i++) {
         double distance = Distance2D(s.state.reaper[0], s.state.wreck[i]);
         if (distance < s.state.wreck[i].radius) {
-          s.score += (300 + MAX_TURN - turn); // 早めにとるようにする。
+          bool oiled = false;
+          for (int j = 0; j < s.state.oil_count; j++) {
+            double oil_distance = Distance2D(s.state.reaper[0], s.state.oil[j]);
+            if (turn < s.state.oil[j].remain && oil_distance < s.state.oil[j].radius) {
+              oiled = true;
+              break;
+            }
+          }
+          if (!oiled) {
+            s.score += (300 + MAX_TURN - turn); // 早めにとるようにする。
+          }        
         }
       }
 
