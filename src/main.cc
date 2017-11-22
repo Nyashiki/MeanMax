@@ -1,19 +1,25 @@
 #include <iostream>
 #include <cassert>
+#include <queue>
+#include <cmath>
 
 using namespace std;
 
-#define DEBUG 
+// #define DEBUG 
 
+struct Point {
+  int x, y;
+  Point() = default;
+  Point(int x, int y): x(x), y(y) { }
+};
 
-struct Unit {
+struct Unit : Point {
   double mass;
   int radius;
-  int x, y;
 
   Unit() = default;
   Unit(double mass, int radius, int x, int y): 
-    mass(mass), radius(radius), x(x), y(y) { }
+    mass(mass), radius(radius), Point(x, y) { }
 };
 
 struct Reaper : Unit {
@@ -69,15 +75,8 @@ struct State {
   Wreck wreck[32];
 
   int tanker_count, wreck_count;
+  State() = default;
 };
-
-
-
-
-namespace Think {
-
-
-}
 
 
 int score[3];
@@ -135,13 +134,128 @@ void Input(State& s) {
   }
 }
 
+namespace Think {
+
+enum ActionType {
+  MOVE, SKILL
+};
+
+struct Action {
+  ActionType action_type;
+  int x, y, throttle;
+
+  Action() = default;
+  Action(int x, int y, int throttle): action_type(MOVE), x(x), y(y), throttle(throttle) { }
+  Action(int x, int y): action_type(SKILL), x(x), y(y) { }
+};
+
+struct Search {
+  int score;
+  State state;
+  Action first_action;
+
+  Search() = default;
+  Search(int score, State state): score(score), state(state) { }
+
+  bool operator<(const Search& s) const {
+    return score < s.score;
+  }
+};
+
+int dx[4] = { 0, 1, 0, -1 };
+int dy[4] = { -1, 1, 0, 1 };
+
+double Distance2D(Point p1, Point p2) {
+  return sqrt((p2.x - p1.x) * (p2.x - p1.x) + (p2.y - p1.y) * (p2.y - p1.y));
+}
+
+void Reaper(const State& state) {
+
+  const int MAX_TURN = 5;
+  priority_queue<Search> que[MAX_TURN + 1];
+  que[0].push(Search(0, state));
+
+  for (int loop = 0; loop < 600; loop++) {
+    for (int turn = 0; turn < MAX_TURN; turn++) {
+      if (que[turn].empty()) {
+        continue;
+      }      
+
+      Search s = que[turn].top();
+      que[turn].pop();
+
+      // ここで取りうる行動を列挙し、turn + 1のqueへpush
+
+      for (int i = 0; i < s.state.wreck_count; i++) {
+        double distance = Distance2D(s.state.reaper[0], s.state.wreck[i]);
+        if (distance < s.state.wreck[i].radius) {
+          s.score += (100 + MAX_TURN - turn); // 早めにとるようにする。
+        }
+      }
+
+      // ToDo: 探索で即時報酬（水）が得られていないときの行動。
+      //    - とりあえず、destroyerとの距離。
+      for (int i = 0; i < 3; i++) {
+        s.score -= (Distance2D(s.state.reaper[0], s.state.destroyer[i]) / 5000);
+      }
+
+      for (int dir = 0; dir < 4; dir++) {
+        int nx = s.state.reaper[0].x + dx[dir];
+        int ny = s.state.reaper[0].y + dy[dir];
+        // ToDo: とりあえず100刻みで動かす。
+        for (int th = 100; th <= 300; th += 100) {
+          int temp_x  = s.state.reaper[0].x;
+          int temp_y  = s.state.reaper[0].y;
+          int temp_vx = s.state.reaper[0].vx;
+          int temp_vy = s.state.reaper[0].vy;
+
+          int speed = (th * 0.714); // th / mass * distance ~= th * 0.714
+          
+          s.state.reaper[0].vx += (nx - s.state.reaper[0].x) * speed;
+          s.state.reaper[0].vy += (ny - s.state.reaper[0].y) * speed;
+          // move
+          s.state.reaper[0].x += s.state.reaper[0].vx;
+          s.state.reaper[0].y += s.state.reaper[0].vy;
+          // friction
+          s.state.reaper[0].vx *= 0.8;
+          s.state.reaper[0].vy *= 0.8;
+
+          if (turn == 0) {
+            s.first_action = Action(nx, ny, th);  
+          }
+          que[turn + 1].push(s);
+
+          // Undo
+          s.state.reaper[0].x = temp_x;
+          s.state.reaper[0].y = temp_y;
+          s.state.reaper[0].vx = temp_vx;
+          s.state.reaper[0].vy = temp_vy;
+        }
+      }
+      
+    }
+  }
+
+  Action first_action = que[MAX_TURN].top().first_action;
+  cerr << "[reaper] " << que[MAX_TURN].top().score << endl;
+
+  if (first_action.action_type == MOVE) {
+    cout << first_action.x << " " << first_action.y << " " << first_action.throttle << endl;
+  } else {
+    cout << "SKILL " << first_action.x << " " << first_action.y << endl;
+  }
+}
+
+
+}
+
 int main() {
 
   // メインループ
   while (true) {
     Input(current_state);
-
-    cout << "WAIT" << endl;
+    
+    Think::Reaper(current_state);
     cout << "WAIT" << endl;
     cout << "WAIT" << endl;
   }
