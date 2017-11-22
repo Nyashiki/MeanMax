@@ -68,6 +68,15 @@ struct Wreck : Unit {
     : Unit(mass, radius, x, y), water(water) { }
 };
 
+struct Tar : Unit {
+  Tar() = default;
+  Tar(int radius, int x, int y): Unit(-1, radius, x, y) {  }
+};
+
+struct Oil : Unit {
+  Oil() = default;
+  Oil(int radius, int x, int y): Unit(-1, radius, x, y) { } 
+};
 
 struct State {
   int rage[3];
@@ -77,8 +86,10 @@ struct State {
   Doof doof[3];
   Tanker tanker[32];
   Wreck wreck[32];
+  Tar tar[32];
+  Oil oil[32];
 
-  int tanker_count, wreck_count;
+  int tanker_count, wreck_count, tar_count, oil_count;
   State() = default;
 };
 
@@ -108,6 +119,8 @@ void Input(State& s) {
 #endif
   s.tanker_count = 0;
   s.wreck_count = 0;
+  s.tar_count = 0;
+  s.oil_count = 0;
   while (unit_count--) {
     int unit_id, unit_type, player_id, radius, x, y, vx, vy, extra, extra2;
     double mass;
@@ -128,9 +141,9 @@ void Input(State& s) {
     } else if (unit_type == 4) { // Wreck
       s.wreck[s.wreck_count++] = Wreck(mass, radius, x, y, extra);
     } else if (unit_type == 5) { // Tar pool
-      // ToDo
+      s.tar[s.tar_count++] = Tar(radius, x, y);
     } else if (unit_type == 6) { // Oil pool
-      // ToDo
+      s.oil[s.oil_count++] = Oil(radius, x, y);
     } else {
       assert(false);
     }
@@ -272,7 +285,7 @@ void Reaper(const State& state) {
       // ToDo: 探索で即時報酬（水）が得られていないときの行動。
       //    - とりあえず、destroyerとの距離が近いほど良い。
       for (int i = 0; i < 3; i++) {
-        s.score -= (Distance2D(s.state.reaper[0], s.state.destroyer[i]) / 5000);
+        s.score -= (Distance2D(s.state.reaper[0], s.state.destroyer[i]) / 15000);
       }
 
       for (int dir = 0; dir < 8; dir++) {
@@ -336,6 +349,40 @@ void Reaper(const State& state) {
 }
 
 void Destroyer(const State& state) {
+  // 自分のreaper付近がわちゃわちゃしていたらGrenade。
+  if (state.rage[0] > 90) {
+    if (Distance2D(state.reaper[0], state.destroyer[0]) < 2000) {
+      int count = 0;
+      for (int i = 1; i < 3; i++) {
+        if (Distance2D(state.reaper[0], state.destroyer[i]) < 1500) {
+          count++;
+        }
+        if (Distance2D(state.reaper[0], state.doof[i]) < 1500) {
+          count++;
+        }
+      }
+      if (count >= 2) {
+        cout << "SKILL " << state.reaper[0].x << " " << state.reaper[0].y << endl;
+        return;
+      }
+    }
+    // 相手だけwreckにいたらGrenade。
+    for (int i = 0; i < state.wreck_count; i++) {
+      if (Distance2D(state.destroyer[0], state.wreck[i]) < 2000) {
+        if (Distance2D(state.reaper[0], state.wreck[i]) < state.wreck[i].radius) {
+          continue;
+        }
+        for (int j = 1; j < 3; j++) {
+          if (Distance2D(state.reaper[j], state.wreck[i]) < state.wreck[i].radius) {
+            cout << "SKILL " << state.wreck[i].x << " " << state.wreck[i].y << endl;
+            return;
+          }
+        }
+      }
+    }
+  }
+  
+  
   if (state.tanker_count == 0) {
     int op_max_score_id = (score[1] > score[2])? 1 : 2;
     cout << state.reaper[op_max_score_id].x << " "
@@ -359,6 +406,33 @@ void Destroyer(const State& state) {
 }
 
 void Doof(const State& state) {
+  if (state.rage[0] > 30) {
+    // 相手にだけwreckを取られる状況なら、とりあえずOilを撒いておく。
+    for (int i = 0; i < state.wreck_count; i++) {
+      if (Distance2D(state.doof[0], state.wreck[i]) > 2000) {
+        continue;
+      }
+      // 既にオイルが置いてある場合は無視。
+      bool already_oiled = false;
+      for (int j = 0; j < state.oil_count; j++) {
+        if (Distance2D(state.oil[j], state.wreck[i]) < (state.oil[j].radius + state.wreck[i].radius) / 2) {
+          already_oiled = true;
+          break;
+        }
+      }
+      if (already_oiled) {
+        continue;
+      }
+      double my_dist = Distance2D(state.reaper[0], state.wreck[i]);
+      for (int j = 1; j < 3; j++) {
+        double op_dist = Distance2D(state.reaper[j], state.wreck[i]);
+        if (my_dist > state.wreck[i].radius && op_dist < state.wreck[i].radius) {
+          cout << "SKILL " << state.wreck[i].x << " " << state.wreck[i].y << endl;
+          return;
+        }
+      }
+    }
+  }
   int op_max_score_id = (score[1] > score[2])? 1 : 2;
   cout << state.reaper[op_max_score_id].x << " "
        << state.reaper[op_max_score_id].y << " " << 300 << endl;
