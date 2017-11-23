@@ -16,7 +16,10 @@ struct Point {
   Point() = default;
   Point(int x, int y): x(x), y(y) { }
   Point operator-(const Point& p) const {
-    return Point(p.x - x, p.y - y);
+    return Point(x - p.x, y - p.y);
+  }
+  Point operator+(const Point& p) const {
+    return Point(x + p.x, y + p.y);
   }
   
 };
@@ -189,7 +192,7 @@ class PriorityQueue {
 
 private:
 
-  const int _MAX = 2048;
+  const int _MAX = 4096;
   Search* _c;
   int _size;
 
@@ -258,7 +261,7 @@ double Distance2D(Point p1, Point p2) {
 }
 
 void Reaper(const State& state) {
-  const int MAX_TURN = 7;
+  const int MAX_TURN = 6;
   PriorityQueue que[MAX_TURN + 1];
   for (int i = 0; i < MAX_TURN + 1; i++) {
     que[i].init();
@@ -281,9 +284,91 @@ void Reaper(const State& state) {
       Search s = que[turn].top();
       que[turn].pop();
 
-      // ここで取りうる行動を列挙し、turn + 1のqueへpush
-      s.score *= 0.95;
+      if (turn > 0) {
+        // Unitたちを動かす。
+        int temp_x = s.state.reaper[0].x;
+        int temp_y = s.state.reaper[0].y;
+        int temp_vx = s.state.reaper[0].vx;
+        int temp_vy = s.state.reaper[0].vy;
 
+        for (int i = 0; i < 3; i++) {
+          { // reaper
+            // move
+            s.state.reaper[i].x += s.state.reaper[i].vx;
+            s.state.reaper[i].y += s.state.reaper[i].vy;
+            // friction
+            s.state.reaper[i].vx *= 0.8;
+            s.state.reaper[i].vy *= 0.8;
+          }
+          { // destroyer
+            // move
+            s.state.destroyer[i].x += s.state.destroyer[i].vx;
+            s.state.destroyer[i].y += s.state.destroyer[i].vy;
+            // friction
+            s.state.destroyer[i].vx *= 0.7;
+            s.state.destroyer[i].vy *= 0.7;
+          }
+          { // doof
+            // move
+            s.state.doof[i].x += s.state.doof[i].vx;
+            s.state.doof[i].y += s.state.doof[i].vy;
+            // friction
+            s.state.doof[i].vx *= 0.75;
+            s.state.doof[i].vy *= 0.75;
+          }
+
+          for (int i = 0; i < s.state.tanker_count; i++) { // tanker
+            // move
+            s.state.tanker[i].x += s.state.tanker[i].vx;
+            s.state.tanker[i].y += s.state.tanker[i].vy;
+            // friction
+            s.state.tanker[i].vx *= 0.6; 
+            s.state.tanker[i].vy *= 0.6; 
+          }
+        }
+
+        bool collision = false;
+        for (int i = 1; i < 3; i++) {
+          if (Distance2D(s.state.reaper[0], s.state.reaper[i]) < 
+            s.state.reaper[0].radius + s.state.destroyer[i].radius) {
+            collision = true;
+            break;
+          } 
+        }
+        if (!collision) {
+          for (int i = 0; i < 3; i++) {
+            if (Distance2D(s.state.reaper[0], s.state.destroyer[i]) < 
+                  s.state.reaper[0].radius + s.state.destroyer[i].radius) {
+              collision = true;
+              break;
+            } else if (Distance2D(s.state.reaper[0], s.state.doof[i]) < 
+              s.state.reaper[0].radius + s.state.doof[i].radius) {
+              collision = true;
+              break;
+            }
+          }
+        }
+        if (!collision) {
+          for (int i = 0; i < s.state.tanker_count; i++) {
+            if (Distance2D(s.state.reaper[0], s.state.tanker[i]) < 
+                  s.state.reaper[0].radius + s.state.tanker[i].radius) {
+              collision = true;
+              break;
+            }
+          }
+        }
+        if (collision) {
+          s.state.reaper[0].x = temp_x;
+          s.state.reaper[0].y = temp_y;
+          s.state.reaper[0].vx = temp_vx;
+          s.state.reaper[0].vy = temp_vy;
+          s.score -= 5;
+        }
+      }
+
+        
+
+      // ここで取りうる行動を列挙し、turn + 1のqueへpush
       for (int i = 0; i < s.state.wreck_count; i++) {
         double distance = Distance2D(s.state.reaper[0], s.state.wreck[i]);
         if (distance < s.state.wreck[i].radius) {
@@ -307,22 +392,14 @@ void Reaper(const State& state) {
         // 要検討: もしかして、常に300で動き続けていいのでは。
         for (int th = 300; th <= 300; th += 100) {
           double ex_score = 0;
-          int temp_x  = s.state.reaper[0].x;
-          int temp_y  = s.state.reaper[0].y;
+
           int temp_vx = s.state.reaper[0].vx;
           int temp_vy = s.state.reaper[0].vy;
-
-          double speed = (dir < 4)? th * 2.0 : (th * 1.414); // th / mass / distance ~= th * 0.714
           
+          double speed = (dir < 4)? th * 2.0 : (th * 1.414); // th / mass / distance ~= th * 0.714
           s.state.reaper[0].vx += (nx - s.state.reaper[0].x) * speed;
           s.state.reaper[0].vy += (ny - s.state.reaper[0].y) * speed;
-          // move
-          s.state.reaper[0].x += s.state.reaper[0].vx;
-          s.state.reaper[0].y += s.state.reaper[0].vy;
-          // friction
-          s.state.reaper[0].vx *= 0.8;
-          s.state.reaper[0].vy *= 0.8;
-
+          
           // destroyerとの距離が近いほど良い。
           for (int i = 0; i < 3; i++) {
             if (Distance2D(s.state.reaper[0], s.state.destroyer[i]) < 1500) {
@@ -342,44 +419,6 @@ void Reaper(const State& state) {
           for (int i = 0; i < s.state.wreck_count; i++) {
             ex_score -= Distance2D(s.state.reaper[0], s.state.wreck[i]) / 6000.0;
           }
-          // でもぶつかるのはだめ。
-          bool collision = false;
-          for (int i = 1; i < 3; i++) {
-            if (Distance2D(s.state.reaper[0], s.state.reaper[i]) < 
-              s.state.reaper[0].radius + s.state.destroyer[i].radius) {
-              collision = true;
-              break;
-            } 
-          }
-          if (!collision) {
-            for (int i = 0; i < 3; i++) {
-              if (Distance2D(s.state.reaper[0], s.state.destroyer[i]) < 
-                    s.state.reaper[0].radius + s.state.destroyer[i].radius) {
-                collision = true;
-                break;
-              } else if (Distance2D(s.state.reaper[0], s.state.doof[i]) < 
-                s.state.reaper[0].radius + s.state.doof[i].radius) {
-                collision = true;
-                break;
-              }
-            }
-          }
-          if (!collision) {
-            for (int i = 0; i < s.state.tanker_count; i++) {
-              if (Distance2D(s.state.reaper[0], s.state.tanker[i]) < 
-                    s.state.reaper[0].radius + s.state.tanker[i].radius) {
-                collision = true;
-                break;
-              }
-            }
-          }
-          if (collision) {
-            s.state.reaper[0].x = temp_x;
-            s.state.reaper[0].y = temp_y;
-            s.state.reaper[0].vx = temp_vx;
-            s.state.reaper[0].vy = temp_vy;
-            ex_score -= 5;
-          }
 
           if (turn == 0) {
             s.first_action = Action(nx, ny, th);  
@@ -390,8 +429,6 @@ void Reaper(const State& state) {
           que[turn + 1].push(s);
 
           // Undo
-          s.state.reaper[0].x = temp_x;
-          s.state.reaper[0].y = temp_y;
           s.state.reaper[0].vx = temp_vx;
           s.state.reaper[0].vy = temp_vy;
 
@@ -414,24 +451,7 @@ void Reaper(const State& state) {
 }
 
 void Destroyer(const State& state) {
-  /*
-  if (state.rage[0] > 90) {
-   // 自分のreaper付近がわちゃわちゃしていたらGrenade。
-    if (Distance2D(state.reaper[0], state.destroyer[0]) < 2000) {
-      int count = 0;
-      for (int i = 1; i < 3; i++) {
-        if (Distance2D(state.reaper[0], state.destroyer[i]) < 1500) {
-          count++;
-        }
-        if (Distance2D(state.reaper[0], state.doof[i]) < 1500) {
-          count++;
-        }
-      }
-      if (count >= 2) {
-        cout << "SKILL " << state.reaper[0].x << " " << state.reaper[0].y << endl;
-        return;
-      }
-    }
+  if (state.rage[0] >= 90) {
     // 相手だけwreckにいたらGrenade。
     for (int i = 0; i < state.wreck_count; i++) {
       if (Distance2D(state.destroyer[0], state.wreck[i]) < 2000) {
@@ -446,7 +466,7 @@ void Destroyer(const State& state) {
         }
       }
     }
-  }*/
+  }
   
   
   if (state.tanker_count == 0) {
@@ -459,7 +479,7 @@ void Destroyer(const State& state) {
 
     for (int i = 0; i < state.tanker_count; i++) {
       // 水を持ってないtankerには興味がない。
-      if (state.tanker[i].water == 0) {
+      if (state.tanker[i].water == 1) {
         continue;
       }
       // reaperからの距離が一番近いtankerを壊しに行く。
@@ -474,13 +494,14 @@ void Destroyer(const State& state) {
       Point p1 = state.tanker[i] - Point(state.reaper[0].vx, state.reaper[0].vy);
       Point p2 = state.tanker[i] - state.destroyer[0];
       double dot = Dot(p1, p2);
-      if (dot >= 0 && distance < op_distance - 200 && distance < distance_min) {
+      if (dot >= 0 && distance < op_distance - 500 && distance < distance_min) {
         distance_min = distance;
         dist_min_tanker_idx = i;
       } 
     }
     if (dist_min_tanker_idx == -1) {
-      cout << "WAIT" << endl;
+      cout << state.destroyer[0].x - state.destroyer[0].vx << " "
+            <<  state.destroyer[0].y - state.destroyer[0].vy << " 300" << endl;
       return;
     }
     cout << state.tanker[dist_min_tanker_idx].x + state.tanker[dist_min_tanker_idx].vx << " "
@@ -519,8 +540,8 @@ void Doof(const State& state) {
   }
 
   int op_max_score_id = (score[1] > score[2])? 1 : 2;
-  cout << state.reaper[op_max_score_id].x + state.reaper[op_max_score_id].vx << " "
-      << state.reaper[op_max_score_id].y + state.reaper[op_max_score_id].vy << " " << 300 << endl;
+  cout << state.reaper[op_max_score_id].x + state.reaper[op_max_score_id].vx * 2 << " "
+      << state.reaper[op_max_score_id].y + state.reaper[op_max_score_id].vy * 2 << " " << 300 << endl;
 }
 
 }
