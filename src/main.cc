@@ -8,6 +8,7 @@ using namespace std;
 // #define DEBUG 
 
 double GetMS() { struct timeval t; gettimeofday(&t, NULL); return (double)t.tv_sec * 1000 + (double)t.tv_usec / 1000; }
+double Sigmoid(double x) { return 1.0 / (1.0 + exp(-x)); }
 
 const int INF = 99999;
 
@@ -169,7 +170,7 @@ struct Action {
 };
 
 struct Search {
-  int score;
+  double score;
   int prev_dir;
   State state;
   Action first_action;
@@ -251,8 +252,7 @@ double Distance2D(Point p1, Point p2) {
 }
 
 void Reaper(const State& state) {
-
-  const int MAX_TURN = 11;
+  const int MAX_TURN = 7;
   PriorityQueue que[MAX_TURN + 1];
   for (int i = 0; i < MAX_TURN + 1; i++) {
     que[i].init();
@@ -264,7 +264,7 @@ void Reaper(const State& state) {
   for (; loop < 600; ) {
 #else
   double start_time = GetMS();
-  while (GetMS() - start_time < 40) {
+  while (GetMS() - start_time < 42) {
 #endif
     loop++;
     for (int turn = 0; turn < MAX_TURN; turn++) {
@@ -276,6 +276,7 @@ void Reaper(const State& state) {
       que[turn].pop();
 
       // ここで取りうる行動を列挙し、turn + 1のqueへpush
+      s.score *= 0.95;
 
       for (int i = 0; i < s.state.wreck_count; i++) {
         double distance = Distance2D(s.state.reaper[0], s.state.wreck[i]);
@@ -289,15 +290,9 @@ void Reaper(const State& state) {
             }
           }
           if (!oiled) {
-            s.score += (300 + MAX_TURN - turn); // 早めにとるようにする。
+            s.score += (500 - 40 * turn + s.state.wreck[i].water); // 早めにとるようにする。
           }        
         }
-      }
-
-      // ToDo: 探索で即時報酬（水）が得られていないときの行動。
-      //    - とりあえず、destroyerとの距離が近いほど良い。
-      for (int i = 0; i < 3; i++) {
-        s.score -= (Distance2D(s.state.reaper[0], s.state.destroyer[i]) / 15000);
       }
 
       for (int dir = 0; dir < 8; dir++) {
@@ -305,13 +300,13 @@ void Reaper(const State& state) {
         int ny = s.state.reaper[0].y + dy[dir];
         // 要検討: もしかして、常に300で動き続けていいのでは。
         for (int th = 300; th <= 300; th += 100) {
-          int ex_score = 0;
+          double ex_score = 0;
           int temp_x  = s.state.reaper[0].x;
           int temp_y  = s.state.reaper[0].y;
           int temp_vx = s.state.reaper[0].vx;
           int temp_vy = s.state.reaper[0].vy;
 
-          int speed = (dir < 4)? th * 2 : (th * 0.714); // th / mass / distance ~= th * 0.714
+          double speed = (dir < 4)? th * 2.0 : (th * 1.414); // th / mass / distance ~= th * 0.714
           
           s.state.reaper[0].vx += (nx - s.state.reaper[0].x) * speed;
           s.state.reaper[0].vy += (ny - s.state.reaper[0].y) * speed;
@@ -322,14 +317,66 @@ void Reaper(const State& state) {
           s.state.reaper[0].vx *= 0.8;
           s.state.reaper[0].vy *= 0.8;
 
+          // destroyerとの距離が近いほど良い。
+          /*for (int i = 0; i < 3; i++) {
+            if (Distance2D(s.state.reaper[0], s.state.destroyer[i]) < 1000) {
+              ex_score += 3;
+              if (i == 0) {
+                ex_score += 1;
+              }
+            }
+          }*/
+          // tankerとの距離が近いほど良い。
+          for (int i = 0; i < s.state.tanker_count; i++) {
+            if (Distance2D(s.state.reaper[0], s.state.tanker[i]) < 1500) {
+              ex_score += 2;
+              break;
+            }
+          }
+          for (int i = 0; i < s.state.wreck_count; i++) {
+            ex_score -= Distance2D(s.state.reaper[0], s.state.wreck[i]) / 6000.0;
+          }
+          // でもぶつかるのはだめ。
+          bool collision = false;
+          for (int i = 1; i < 3; i++) {
+            if (Distance2D(s.state.reaper[0], s.state.reaper[i]) < 
+              s.state.reaper[0].radius + s.state.destroyer[i].radius) {
+              collision = true;
+              break;
+            } 
+          }
+          if (!collision) {
+            for (int i = 0; i < 3; i++) {
+              if (Distance2D(s.state.reaper[0], s.state.destroyer[i]) < 
+                    s.state.reaper[0].radius + s.state.destroyer[i].radius) {
+                collision = true;
+                break;
+              } else if (Distance2D(s.state.reaper[0], s.state.doof[i]) < 
+                s.state.reaper[0].radius + s.state.doof[i].radius) {
+                collision = true;
+                break;
+              }
+            }
+          }
+          if (!collision) {
+            for (int i = 0; i < s.state.tanker_count; i++) {
+              if (Distance2D(s.state.reaper[0], s.state.tanker[i]) < 
+                    s.state.reaper[0].radius + s.state.tanker[i].radius) {
+                collision = true;
+                break;
+              }
+            }
+          }
+          if (collision) {
+            s.state.reaper[0].x = temp_x;
+            s.state.reaper[0].y = temp_y;
+            s.state.reaper[0].vx = temp_vx;
+            s.state.reaper[0].vy = temp_vy;
+            ex_score -= 5;
+          }
+
           if (turn == 0) {
             s.first_action = Action(nx, ny, th);  
-          }
-          // 遠い場所を効率よく探索するため
-          ex_score += (th / 100);
-          // 同じ方向に動き続けることは、基本的に良いこと
-          if (dir == s.prev_dir) {
-            ex_score += 10;
           }
           
           s.score += ex_score;
@@ -404,13 +451,22 @@ void Destroyer(const State& state) {
     double distance_min = INF;
 
     for (int i = 0; i < state.tanker_count; i++) {
-      double distance = Distance2D(state.destroyer[0], state.tanker[i]);
+      // reaperからの距離が一番近いtankerを壊しに行く。
+      // 実験: destroyerから一番近いtankerにしてみる。
+      double distance = Distance2D(state.reaper[0], state.tanker[i]);
       if (distance < distance_min) {
-        distance = distance_min;
+        distance_min = distance;
         dist_min_tanker_idx = i;
       } 
     }
 
+    for (int i = 1; i < 3; i++) {
+      double distance = Distance2D(state.reaper[i], state.tanker[dist_min_tanker_idx]);
+      if (distance > 2000 && distance < distance_min) {
+        cout << "WAIT" << endl;
+        return;
+      }
+    }
     cout << state.tanker[dist_min_tanker_idx].x << " "
          << state.tanker[dist_min_tanker_idx].y << " "
          << 300 << endl;
@@ -445,9 +501,10 @@ void Doof(const State& state) {
       }
     }
   }
+
   int op_max_score_id = (score[1] > score[2])? 1 : 2;
   cout << state.reaper[op_max_score_id].x << " "
-       << state.reaper[op_max_score_id].y << " " << 300 << endl;
+      << state.reaper[op_max_score_id].y << " " << 300 << endl;
 }
 
 }
@@ -457,10 +514,12 @@ int main() {
   // メインループ
   while (true) {
     Input(current_state);
-    
+    double start_time = GetMS();
     Think::Reaper(current_state);
     Think::Destroyer(current_state);
     Think::Doof(current_state);
+    double elapsed = GetMS() - start_time;
+    cerr << "elapsed: " << elapsed << endl;
   }
 
   return 0;
