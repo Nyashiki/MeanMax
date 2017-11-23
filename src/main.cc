@@ -9,14 +9,20 @@ using namespace std;
 
 double GetMS() { struct timeval t; gettimeofday(&t, NULL); return (double)t.tv_sec * 1000 + (double)t.tv_usec / 1000; }
 double Sigmoid(double x) { return 1.0 / (1.0 + exp(-x)); }
-
 const int INF = 99999;
 
 struct Point {
   int x, y;
   Point() = default;
   Point(int x, int y): x(x), y(y) { }
+  Point operator-(const Point& p) const {
+    return Point(p.x - x, p.y - y);
+  }
+  
 };
+double Dot(Point p1, Point p2) {
+  return (p1.x * p2.x + p1.y * p2.y);
+}
 
 struct Unit : Point {
   double mass;
@@ -318,21 +324,21 @@ void Reaper(const State& state) {
           s.state.reaper[0].vy *= 0.8;
 
           // destroyerとの距離が近いほど良い。
-          /*for (int i = 0; i < 3; i++) {
-            if (Distance2D(s.state.reaper[0], s.state.destroyer[i]) < 1000) {
+          for (int i = 0; i < 3; i++) {
+            if (Distance2D(s.state.reaper[0], s.state.destroyer[i]) < 1500) {
               ex_score += 3;
               if (i == 0) {
                 ex_score += 1;
               }
             }
-          }*/
+          }
           // tankerとの距離が近いほど良い。
-          for (int i = 0; i < s.state.tanker_count; i++) {
+          /*for (int i = 0; i < s.state.tanker_count; i++) {
             if (Distance2D(s.state.reaper[0], s.state.tanker[i]) < 1500) {
               ex_score += 2;
               break;
             }
-          }
+          }*/
           for (int i = 0; i < s.state.wreck_count; i++) {
             ex_score -= Distance2D(s.state.reaper[0], s.state.wreck[i]) / 6000.0;
           }
@@ -408,8 +414,9 @@ void Reaper(const State& state) {
 }
 
 void Destroyer(const State& state) {
-  // 自分のreaper付近がわちゃわちゃしていたらGrenade。
+  /*
   if (state.rage[0] > 90) {
+   // 自分のreaper付近がわちゃわちゃしていたらGrenade。
     if (Distance2D(state.reaper[0], state.destroyer[0]) < 2000) {
       int count = 0;
       for (int i = 1; i < 3; i++) {
@@ -439,7 +446,7 @@ void Destroyer(const State& state) {
         }
       }
     }
-  }
+  }*/
   
   
   if (state.tanker_count == 0) {
@@ -447,28 +454,37 @@ void Destroyer(const State& state) {
     cout << state.reaper[op_max_score_id].x << " "
        << state.reaper[op_max_score_id].y << " " << 300 << endl;
   } else {
-    int dist_min_tanker_idx = 0;
+    int dist_min_tanker_idx = -1;
     double distance_min = INF;
 
     for (int i = 0; i < state.tanker_count; i++) {
+      // 水を持ってないtankerには興味がない。
+      if (state.tanker[i].water == 0) {
+        continue;
+      }
       // reaperからの距離が一番近いtankerを壊しに行く。
-      // 実験: destroyerから一番近いtankerにしてみる。
       double distance = Distance2D(state.reaper[0], state.tanker[i]);
-      if (distance < distance_min) {
+      double op_distance = INF;
+      for (int j = 1; j < 3; j++) {
+        op_distance = min(op_distance, Distance2D(state.reaper[i], state.tanker[i]));
+      }
+      // 相手が近かったり、相手のreaperのほうが自分のreaperより近い場合は、
+      // tankerを破壊しない。
+      // 同じ方向を向いてない場合も、破壊しない。
+      Point p1 = state.tanker[i] - Point(state.reaper[0].vx, state.reaper[0].vy);
+      Point p2 = state.tanker[i] - state.destroyer[0];
+      double dot = Dot(p1, p2);
+      if (dot >= 0 && distance < op_distance - 200 && distance < distance_min) {
         distance_min = distance;
         dist_min_tanker_idx = i;
       } 
     }
-
-    for (int i = 1; i < 3; i++) {
-      double distance = Distance2D(state.reaper[i], state.tanker[dist_min_tanker_idx]);
-      if (distance > 2000 && distance < distance_min) {
-        cout << "WAIT" << endl;
-        return;
-      }
+    if (dist_min_tanker_idx == -1) {
+      cout << "WAIT" << endl;
+      return;
     }
-    cout << state.tanker[dist_min_tanker_idx].x << " "
-         << state.tanker[dist_min_tanker_idx].y << " "
+    cout << state.tanker[dist_min_tanker_idx].x + state.tanker[dist_min_tanker_idx].vx << " "
+         << state.tanker[dist_min_tanker_idx].y + state.tanker[dist_min_tanker_idx].vy<< " "
          << 300 << endl;
   }
 }
@@ -503,8 +519,8 @@ void Doof(const State& state) {
   }
 
   int op_max_score_id = (score[1] > score[2])? 1 : 2;
-  cout << state.reaper[op_max_score_id].x << " "
-      << state.reaper[op_max_score_id].y << " " << 300 << endl;
+  cout << state.reaper[op_max_score_id].x + state.reaper[op_max_score_id].vx << " "
+      << state.reaper[op_max_score_id].y + state.reaper[op_max_score_id].vy << " " << 300 << endl;
 }
 
 }
