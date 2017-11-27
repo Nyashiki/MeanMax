@@ -297,7 +297,7 @@ void Reaper(const State& state) {
         double distance_from_centre = Distance2D(s.state.reaper[0], Point(0, 0));
         // 範囲外
         if (distance_from_centre > 6000) {
-          continue;
+          s.score -= INF;
         }
       }
 
@@ -330,7 +330,6 @@ void Reaper(const State& state) {
               double distance = Distance2D(s.state.destroyer[i], s.state.tanker[j]);
               if (distance < s.state.destroyer[i].radius + s.state.tanker[j].radius) {
                 s.state.wreck[s.state.wreck_count++] = Wreck(s.state.tanker[j].radius, s.state.tanker[j].x, s.state.tanker[j].y, s.state.tanker[j].water);
-                // tankerを消す．
                 s.state.tanker[j].x = INF;
                 s.state.tanker[j].y = INF;
               }
@@ -547,7 +546,7 @@ void Destroyer(const State& state) {
   for (; loop < 600; ) {
 #else
   double start_time = GetMS();
-  while (GetMS() - start_time < 13) {
+  while (GetMS() - start_time < 12) {
 #endif
     loop++;
     for (int turn = 0; turn < MAX_TURN; turn++) {
@@ -613,7 +612,7 @@ void Destroyer(const State& state) {
             for (int j = 1; j < 3; j++) {
               op_distance = min(op_distance, Distance2D(s.state.reaper[j], s.state.tanker[i]));
             }
-            if (my_distance + 200 < op_distance) {
+            if (my_distance < op_distance) {
               // 相手のdoofが近くにいると，少しいやだ．
               bool flag = false;
               for (int j = 1; j < 3; j++) {
@@ -641,9 +640,9 @@ void Destroyer(const State& state) {
         for (int i = 0; i < s.state.wreck_count; i++) {
           double distance = Distance2D(s.state.destroyer[0], s.state.wreck[i]);
           // 自分のdoof圏内ならば，興味はない．
-          if (Distance2D(s.state.doof[0], s.state.wreck[i]) < 2000) {
+          /*if (Distance2D(s.state.doof[0], s.state.wreck[i]) < 2000) {
             continue;
-          }
+          }*/
           if (distance < s.state.wreck[i].radius) {
             double my_distance = Distance2D(s.state.reaper[0], s.state.wreck[i]);
             double op_distance = INF;
@@ -651,19 +650,20 @@ void Destroyer(const State& state) {
               op_distance = min(op_distance, Distance2D(s.state.reaper[j], s.state.wreck[i]));
             }
             // 自分のreaperを邪魔しない．
-            if (my_distance < op_distance) {
+            if (my_distance < 500 && my_distance < op_distance) {
               s.score -= 50;
-            } else {
+            } 
+            if (op_distance < 500 && op_distance < my_distance) {
               s.score += 50;
             }
           }
         }
       }
 
-      /*s.score *= 0.9;  */
-      // 方向による偏りをなくす．
-      s.score += (-1 + rand() % 3);
-      
+      for (int i = 0; i < s.state.tanker_count; i++) {
+        s.score -= Sigmoid(sqrt(Distance2D(s.state.destroyer[0], s.state.tanker[i]) / 6000.0));
+      }
+
 
       // ここで取りうる行動を列挙し、turn + 1のqueへpush
 
